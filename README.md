@@ -40,7 +40,7 @@ medication-service/
 
 1. Clone the repository:
    ```sh
-   git clone https://github.com/hamza-cloud/medication-service.git
+   git clone https://github.com/Maverics-Seneca/medication-service.git
    ```
 
 2. Install dependencies:
