@@ -1,96 +1,67 @@
-const express = require('express');
-const app = express();
-const PORT = 4002;
+require('dotenv').config(); // Load environment variables from .env file
 
+const express = require('express');
+const cors = require('cors'); // Import cors
+const admin = require('firebase-admin');
+const bodyParser = require('body-parser');
+
+// Initialize Firebase
+const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString('utf8'));
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+const db = admin.firestore();
+
+const app = express();
 app.use(express.json());
 
-// Mock Database for Medications
-let medications = [
-    { id: 1, userId: 1, name: "Paracetamol", dosage: "500mg", frequency: "Twice a day" },
-    { id: 2, userId: 1, name: "Ibuprofen", dosage: "200mg", frequency: "Once a day" },
-    { id: 3, userId: 2, name: "Aspirin", dosage: "100mg", frequency: "Once a day" }
-];
 
-// Create Medication (Add new medication)
-app.post('/medications', (req, res) => {
-    const { userId, name, dosage, frequency } = req.body;
-    if (!userId || !name || !dosage || !frequency) {
-        return res.status(400).json({ error: "All fields are required" });
-    }
-    
-    const newMedication = {
-        id: medications.length + 1,
-        userId,
-        name,
-        dosage,
-        frequency
-    };
-    
-    medications.push(newMedication);
-    res.status(201).json({ message: "Medication added successfully", medication: newMedication });
-});
+// Middleware
+app.use(cors({
+    origin: 'http://middleware:3001', // Allow requests from middleware
+    credentials: true, // Allow cookies to be sent
+}));
 
-// Get All Medications
-app.get('/medications', (req, res) => {
-    res.json({ medications });
-});
+// Add a new medicine
+app.post('/api/medicine/add', async (req, res) => {
 
-// Get Medications for a Specific User
-app.get('/medications/user/:userId', (req, res) => {
-    const userId = parseInt(req.params.userId);
-    const userMedications = medications.filter(med => med.userId === userId);
-
-    if (userMedications.length === 0) {
-        return res.status(404).json({ error: "No medications found for this user" });
+    if (!req.body) {
+        console.error('Request body is undefined');
+        return res.status(400).json({ error: 'Request body is missing' });
     }
 
-    res.json({ medications: userMedications });
-});
+    const { patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory } = req.body;
 
-// Get a Single Medication by ID
-app.get('/medications/:id', (req, res) => {
-    const medication = medications.find(med => med.id === parseInt(req.params.id));
-
-    if (!medication) {
-        return res.status(404).json({ error: "Medication not found" });
+    if (!patientId || !name || !dosage || !frequency || !prescribingDoctor || !endDate || inventory === undefined) {
+        console.error('Missing required fields:', { patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory });
+        return res.status(400).json({ error: 'All fields are required' });
     }
 
-    res.json({ medication });
-});
-
-// Update Medication
-app.put('/medications/:id', (req, res) => {
-    const { name, dosage, frequency } = req.body;
-    const medication = medications.find(med => med.id === parseInt(req.params.id));
-
-    if (!medication) {
-        return res.status(404).json({ error: "Medication not found" });
+    if (!Number.isInteger(inventory) || inventory < 0) {
+        console.error('Invalid inventory:', inventory);
+        return res.status(400).json({ error: 'Inventory must be a non-negative integer' });
     }
 
-    if (name) medication.name = name;
-    if (dosage) medication.dosage = dosage;
-    if (frequency) medication.frequency = frequency;
+    try {
+        const medicineRef = await db.collection('medications').add({
+            patientId,
+            name,
+            dosage,
+            frequency,
+            prescribingDoctor,
+            endDate,
+            inventory,
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
 
-    res.json({ message: "Medication updated successfully", medication });
-});
-
-// Delete Medication
-app.delete('/medications/:id', (req, res) => {
-    const medicationIndex = medications.findIndex(med => med.id === parseInt(req.params.id));
-
-    if (medicationIndex === -1) {
-        return res.status(404).json({ error: "Medication not found" });
+        console.log('Medicine added with ID:', medicineRef.id);
+        res.json({ message: 'Medicine added successfully', id: medicineRef.id });
+    } catch (error) {
+        console.error('Error adding medicine to Firebase:', error);
+        res.status(500).json({ error: 'Failed to add medicine', details: error.message });
     }
-
-    const deletedMedication = medications.splice(medicationIndex, 1);
-    res.json({ message: "Medication deleted successfully", medication: deletedMedication });
 });
 
-// Health Check Endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: "Medication Service is running" });
-});
-
+// Start the server
+const PORT = 4002;
 app.listen(PORT, () => {
-    console.log(`Medication Service running on port ${PORT}`);
+    console.log(`Medication service running on port ${PORT}`);
 });
