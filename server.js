@@ -60,7 +60,7 @@ app.post('/api/medicine/add', async (req, res) => {
     }
 });
 
-// medication-service
+// Fetch medications
 app.get('/api/medicine/get', async (req, res) => {
     const { patientId } = req.query;
 
@@ -70,11 +70,11 @@ app.get('/api/medicine/get', async (req, res) => {
 
     try {
         const currentDate = new Date();
-        const formattedCurrentDate = currentDate.toISOString().split('T')[0]; // e.g., "2025-03-10"
+        const formattedCurrentDate = currentDate.toISOString().split('T')[0];
         console.log('Fetching medications with endDate >=', formattedCurrentDate);
         const snapshot = await db.collection('medications')
             .where('patientId', '==', patientId)
-            .where('endDate', '>', formattedCurrentDate) // Filter for non-expired medications
+            .where('endDate', '>=', formattedCurrentDate)
             .get();
 
         if (snapshot.empty) {
@@ -94,7 +94,7 @@ app.get('/api/medicine/get', async (req, res) => {
         res.status(500).json({
             error: 'Failed to fetch medications',
             details: error.message,
-            code: error.code // Optional: Firebase-specific error code
+            code: error.code
         });
     }
 });
