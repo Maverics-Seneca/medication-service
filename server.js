@@ -99,6 +99,43 @@ app.get('/api/medicine/get', async (req, res) => {
     }
 });
 
+app.get('/api/medicine/history', async (req, res) => {
+    const { patientId } = req.query;
+
+    if (!patientId) {
+        return res.status(400).json({ error: 'patientId is required' });
+    }
+
+    try {
+        const currentDate = new Date();
+        const formattedCurrentDate = currentDate.toISOString().split('T')[0]; // e.g., "2025-03-10"
+        const snapshot = await db.collection('medications')
+            .where('patientId', '==', patientId)
+            .where('endDate', '<', formattedCurrentDate) // Filter for expired medications
+            .get();
+
+        if (snapshot.empty) {
+            console.log('No expired medications found for patientId:', patientId);
+            return res.json([]);
+        }
+
+        const medications = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        console.log('Expired medications retrieved:', medications);
+        res.json(medications);
+    } catch (error) {
+        console.error('Error fetching medication history from Firebase:', error);
+        res.status(500).json({
+            error: 'Failed to fetch medication history',
+            details: error.message,
+            code: error.code
+        });
+    }
+});
+
 // Update a medicine
 app.post('/api/medicine/update', async (req, res) => {
     const { id, patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory } = req.body;
