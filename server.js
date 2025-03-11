@@ -60,8 +60,7 @@ app.post('/api/medicine/add', async (req, res) => {
     }
 });
 
-
-// Fetch all medications for a patient
+// medication-service
 app.get('/api/medicine/get', async (req, res) => {
     const { patientId } = req.query;
 
@@ -70,12 +69,16 @@ app.get('/api/medicine/get', async (req, res) => {
     }
 
     try {
+        const currentDate = new Date();
+        const formattedCurrentDate = currentDate.toISOString().split('T')[0]; // e.g., "2025-03-10"
+        console.log('Fetching medications with endDate >=', formattedCurrentDate);
         const snapshot = await db.collection('medications')
             .where('patientId', '==', patientId)
+            .where('endDate', '>', formattedCurrentDate) // Filter for non-expired medications
             .get();
 
         if (snapshot.empty) {
-            console.log('No medications found for patientId:', patientId);
+            console.log('No valid medications found for patientId:', patientId);
             return res.json([]);
         }
 
@@ -84,11 +87,15 @@ app.get('/api/medicine/get', async (req, res) => {
             ...doc.data()
         }));
 
-        console.log('Medications retrieved:', medications);
+        console.log('Valid medications retrieved:', medications);
         res.json(medications);
     } catch (error) {
         console.error('Error fetching medications from Firebase:', error);
-        res.status(500).json({ error: 'Failed to fetch medications', details: error.message });
+        res.status(500).json({
+            error: 'Failed to fetch medications',
+            details: error.message,
+            code: error.code // Optional: Firebase-specific error code
+        });
     }
 });
 
