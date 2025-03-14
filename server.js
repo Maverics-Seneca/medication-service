@@ -20,21 +20,34 @@ app.use(cors({
 }));
 
 // Logging function
-async function logChange(action, user, entity, entityId, details = {}) {
+async function logChange(action, userId, entity, entityId, entityName, details = {}) {
     try {
-      const logEntry = {
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        action,
-        user: user || 'unknown', // Fallback if user isn’t provided
-        entity,
-        entityId
-      };
-      await db.collection('logs').add(logEntry);
-      console.log(`Logged: ${action} on ${entity} (${entityId}) by ${user}`);
+        let userName = 'Unknown';
+        try {
+            const userDoc = await db.collection('users').doc(userId).get();
+            if (userDoc.exists) {
+                userName = userDoc.data().name || 'Unnamed User';
+            }
+        } catch (error) {
+            console.error(`Error fetching user ${userId}:`, error);
+        }
+
+        const logEntry = {
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            action,
+            userId: userId || 'unknown',
+            userName,
+            entity,
+            entityId,
+            entityName: entityName || 'N/A',
+            details,
+        };
+        await db.collection('logs').add(logEntry);
+        console.log(`Logged: ${action} on ${entity} (${entityId}, ${entityName}) by ${userId} (${userName})`);
     } catch (error) {
-      console.error('Error logging change:', error);
+        console.error('Error logging change:', error);
     }
-  }
+}
 
 // Add a new medicine
 app.post('/api/medicine/add', async (req, res) => {
@@ -68,7 +81,8 @@ app.post('/api/medicine/add', async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        await logChange('CREATE', patientId, 'Medication', medicineRef.id, name, { data: req.body });        console.log('Medicine added with ID:', medicineRef.id);
+        await logChange('CREATE', patientId, 'Medication', medicineRef.id, name, { data: req.body });
+        console.log('Medicine added with ID:', medicineRef.id);
         res.json({ message: 'Medicine added successfully', id: medicineRef.id });
     } catch (error) {
         console.error('Error adding medicine to Firebase:', error);
