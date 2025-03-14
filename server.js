@@ -13,12 +13,28 @@ const db = admin.firestore();
 const app = express();
 app.use(express.json());
 
-
 // Middleware
 app.use(cors({
     origin: 'http://middleware:3001', // Allow requests from middleware
     credentials: true, // Allow cookies to be sent
 }));
+
+// Logging function
+async function logChange(action, user, entity, entityId, details = {}) {
+    try {
+      const logEntry = {
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        action,
+        user: user || 'unknown', // Fallback if user isn’t provided
+        entity,
+        entityId
+      };
+      await db.collection('logs').add(logEntry);
+      console.log(`Logged: ${action} on ${entity} (${entityId}) by ${user}`);
+    } catch (error) {
+      console.error('Error logging change:', error);
+    }
+  }
 
 // Add a new medicine
 app.post('/api/medicine/add', async (req, res) => {
@@ -52,7 +68,7 @@ app.post('/api/medicine/add', async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        console.log('Medicine added with ID:', medicineRef.id);
+        await logChange('CREATE', patientId, 'Medication', medicineRef.id, name, { data: req.body });        console.log('Medicine added with ID:', medicineRef.id);
         res.json({ message: 'Medicine added successfully', id: medicineRef.id });
     } catch (error) {
         console.error('Error adding medicine to Firebase:', error);
@@ -167,6 +183,7 @@ app.post('/api/medicine/update', async (req, res) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
+        await logChange('UPDATE', patientId, 'Medication', id, name, { oldData: medicineData, newData: req.body });
         console.log('Medicine updated successfully:', { id });
         res.json({ message: 'Medicine updated successfully' });
     } catch (error) {
@@ -196,6 +213,7 @@ app.delete('/api/medicine/delete', async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized to delete this medicine' });
         }
 
+        await logChange('DELETE', patientId, 'Medication', id, medicineData.name, { data: medicineData });
         await medicineRef.delete();
 
         console.log('Medicine deleted successfully:', { id });
