@@ -1,18 +1,37 @@
+// Import required modules
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
 const bodyParser = require('body-parser');
 
+// Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_CREDENTIALS, 'base64').toString('utf8'));
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+// Initialize Express app
 const app = express();
+
+// Middleware setup
 app.use(express.json());
 app.use(cors({ origin: 'http://middleware:3001', credentials: true }));
 app.use(bodyParser.json());
 
+// Constants
+const PORT = process.env.PORT || 4002;
+
+// Utility Functions
+
+/**
+ * Logs changes to Firestore for auditing purposes.
+ * @param {string} action - The action performed (e.g., CREATE, UPDATE, DELETE).
+ * @param {string} userId - The ID of the user performing the action.
+ * @param {string} entity - The entity being modified (e.g., 'Medication').
+ * @param {string} entityId - The ID of the entity being modified.
+ * @param {string} entityName - The name of the entity being modified.
+ * @param {object} details - Additional details about the change.
+ */
 async function logChange(action, userId, entity, entityId, entityName, details = {}) {
     try {
         let userName = 'Unknown';
@@ -36,10 +55,26 @@ async function logChange(action, userId, entity, entityId, entityName, details =
     }
 }
 
+// API Endpoints
+
+/**
+ * Add a new medication.
+ * @route POST /api/medicine/add
+ * @param {string} patientId - The ID of the patient associated with the medication.
+ * @param {string} name - The name of the medication.
+ * @param {string} dosage - The dosage of the medication.
+ * @param {string} frequency - The frequency of the medication.
+ * @param {string} prescribingDoctor - The doctor who prescribed the medication.
+ * @param {string} endDate - The end date of the medication.
+ * @param {number} inventory - The inventory count of the medication.
+ * @param {string} organizationId - The ID of the organization (optional).
+ */
 app.post('/api/medicine/add', async (req, res) => {
     if (!req.body) return res.status(400).json({ error: 'Request body is missing' });
 
     const { patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory, organizationId } = req.body;
+
+    // Input validation
     if (!patientId || !name || !dosage || !frequency || !prescribingDoctor || !endDate || inventory === undefined) {
         console.error('Missing required fields:', { patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory, organizationId });
         return res.status(400).json({ error: 'All fields are required except organizationId' });
@@ -75,8 +110,16 @@ app.post('/api/medicine/add', async (req, res) => {
         res.status(500).json({ error: 'Failed to add medicine', details: error.message });
     }
 });
+
+/**
+ * Get current medications for a specific patient.
+ * @route GET /api/medicine/get
+ * @param {string} patientId - The ID of the patient to fetch medications for.
+ */
 app.get('/api/medicine/get', async (req, res) => {
     const { patientId } = req.query;
+
+    // Input validation
     if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
     try {
@@ -100,8 +143,15 @@ app.get('/api/medicine/get', async (req, res) => {
     }
 });
 
+/**
+ * Get expired medications for a specific patient.
+ * @route GET /api/medicine/history
+ * @param {string} patientId - The ID of the patient to fetch expired medications for.
+ */
 app.get('/api/medicine/history', async (req, res) => {
     const { patientId } = req.query;
+
+    // Input validation
     if (!patientId) return res.status(400).json({ error: 'patientId is required' });
 
     try {
@@ -125,8 +175,22 @@ app.get('/api/medicine/history', async (req, res) => {
     }
 });
 
+/**
+ * Update a medication's details.
+ * @route POST /api/medicine/update
+ * @param {string} id - The ID of the medication to update.
+ * @param {string} patientId - The ID of the patient associated with the medication.
+ * @param {string} name - The updated name of the medication.
+ * @param {string} dosage - The updated dosage of the medication.
+ * @param {string} frequency - The updated frequency of the medication.
+ * @param {string} prescribingDoctor - The updated prescribing doctor.
+ * @param {string} endDate - The updated end date of the medication.
+ * @param {number} inventory - The updated inventory count of the medication.
+ */
 app.post('/api/medicine/update', async (req, res) => {
     const { id, patientId, name, dosage, frequency, prescribingDoctor, endDate, inventory } = req.body;
+
+    // Input validation
     if (!id || !patientId) return res.status(400).json({ error: 'id and patientId are required' });
 
     try {
@@ -154,8 +218,16 @@ app.post('/api/medicine/update', async (req, res) => {
     }
 });
 
+/**
+ * Delete a medication.
+ * @route DELETE /api/medicine/delete
+ * @param {string} id - The ID of the medication to delete.
+ * @param {string} patientId - The ID of the patient associated with the medication.
+ */
 app.delete('/api/medicine/delete', async (req, res) => {
     const { id, patientId } = req.body;
+
+    // Input validation
     if (!id || !patientId) return res.status(400).json({ error: 'id and patientId are required' });
 
     try {
@@ -175,8 +247,15 @@ app.delete('/api/medicine/delete', async (req, res) => {
     }
 });
 
+/**
+ * Get all current medications for an organization.
+ * @route GET /api/medications/all
+ * @param {string} organizationId - The ID of the organization to fetch medications for.
+ */
 app.get('/api/medications/all', async (req, res) => {
     const { organizationId } = req.query;
+
+    // Input validation
     if (!organizationId) return res.status(400).json({ error: 'organizationId is required' });
 
     try {
@@ -206,5 +285,5 @@ app.get('/api/medications/all', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 4002;
+// Start the server
 app.listen(PORT, () => console.log(`Medication Service running on port ${PORT}`));
