@@ -206,5 +206,35 @@ app.get('/api/medications/all', async (req, res) => {
     }
 });
 
+app.post('/api/contact-us', async (req, res) => {
+    if (!req.body) return res.status(400).json({ error: 'Request body is missing' });
+
+    const { name, email, subject, message } = req.body;
+    if (!name || !email || !subject || !message === undefined) {
+        console.error('Missing required fields:', { name, email, subject, message });
+        return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    console.log('Received request body:', req.body); // Log the full request body
+
+    try {
+        const contactData = {
+            name,
+            email,
+            subject,
+            message,
+            receivedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        console.log('Data to be stored in Firestore:', contactData); // Log before storing
+
+        const contactRef = await db.collection('userMessages').add(contactData);
+        console.log('User Message added with ID:', contactRef.id);
+        res.json({ message: 'Message saved successfully', id: contactRef.id });
+    } catch (error) {
+        console.error('Error adding message:', error.message);
+        res.status(500).json({ error: 'Failed to add message', details: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 4002;
 app.listen(PORT, () => console.log(`Medication Service running on port ${PORT}`));
